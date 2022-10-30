@@ -100,3 +100,8 @@ Create a tar archive with multiple payloads (from the default mass-find dictiona
 python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive
 ```
 ⚠️ WARNING: mass-find mode supports paths, this translates to a bruteforce attempt to rewrite a specific file, but it uses A LOT of payloads, so the result is unpredictable. Use with caution.
+
+## Notes
+Depending on the library that handles the decompression, results may vary greatly.
+
+Different compression algorithms can trigger different behaviours during the extraction, but also the usage of certain path traversal payloads in names or the copresence of path traversal payloads in names and symlink can lead to weird behaviours during the extraction. Many combinations of compression algorithms, archive types and payloads are relatively untested and should be evaluated on a case by case basis to obtain the best results.
