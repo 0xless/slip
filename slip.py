@@ -456,7 +456,7 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 				fi = a.create_fileinfo(symlink_name)
 				
 				if symlink_path:
-					a.add_file(fi, s, symlink=True)
+					a.add_file(fi, symlink_path, symlink=True)
 				else:
 					a.add_file(fi, s, symlink=True)
 			else:
