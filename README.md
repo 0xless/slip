@@ -1,5 +1,8 @@
 # Slip
 
+![license](https://img.shields.io/github/license/0xless/slip?label=GPL-3)
+
+
 Slip is a malicious archive generator to exploit path traversal vulnerabilities.
 
 Slip makes it easy to create multiple archives containing path traversal payloads in file name fields, rendering the extraction of the archive a potentially dangerous operation. With this approach it is possible to find and exploit "[zip-slip](https://security.snyk.io/research/zip-slip-vulnerability)" type vulnerabilities.
