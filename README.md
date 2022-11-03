@@ -116,3 +116,6 @@ python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode sym
 - Archive types: jar|war|apk|ipa are supported as simple zip archives.  
 The archive format is correct, but valid files should contain compatible contents.
 Valid contents can be set manually and are not yet supported by slip.
+
+## License
+This project is licensed under the GPL-3.0 [License](https://github.com/0xless/slip/blob/main/LICENSE).
