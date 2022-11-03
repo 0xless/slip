@@ -21,9 +21,6 @@ import string
 import random
 import click
 
-# Patools:
-# 	ADD SUPPORT FOR cpio FILES
-# 	ADD SUPPORT FOR rar FILES 
 
 class Util:
 	RED = "\033[0;31m"
@@ -166,6 +163,7 @@ class Util:
 		
 		print(Util.GREEN+f"[+] Success! {archive.filename} created"+Util.END)
 
+
 class Searcher:
 	def gen_search_paths(filename, depth, payload):
 		ret_list = []
@@ -179,6 +177,7 @@ class Searcher:
 				ret_list.append(payload * i + filename_stripped)
 		
 		return ret_list
+
 
 class SevenZipper:
 	compression_methods = ([{'id': FILTER_LZMA}], 
@@ -224,6 +223,15 @@ class SevenZipper:
 			
 			FILE_ATTRIBUTE_UNIX_EXTENSION = 0x8000 #specified in py7zr
 			f["attributes"] = f["attributes"]  | FILE_ATTRIBUTE_UNIX_EXTENSION | (stat.S_IFLNK << 16)
+			
+			'''
+			ORIGINAL CODE SNIPPET:
+			
+			f["emptystream"] = False
+			f["attributes"] = getattr(stat, "FILE_ATTRIBUTE_ARCHIVE") | getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT")
+			f["attributes"] |= FILE_ATTRIBUTE_UNIX_EXTENSION | (stat.S_IFLNK << 16)
+			f["attributes"] |= stat.S_IMODE(fstat.st_mode) << 16
+			'''
 			
 		if self.date_time:
 			# Last element of files_list is the newly added file
