@@ -20,7 +20,7 @@ Slip is a feature rich script capable of satisfying most "zip-slip" hunting need
 - Supports multiple payloads of different types (paths/symlinks)
 - Supports the automatic generation of path traversal payloads to look for a file at different "depths" 
 - Supports the usage of custom "dotdotslash" sequences
-- Implements a "massfind" mode, that uses a payload dictionary to create the archive (dictionary provided 😉)
+- Implements a "massfind" mode, that uses a payload dictionary to create the archive
 
 ## Getting started
 
