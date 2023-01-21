@@ -81,7 +81,7 @@ python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" 
 
 Create a tar.bz2 archive with 4 payloads to search for "config.ini" at 3 different depths (it also uses Windows flavor dot dot slash): 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" archive
+python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" --file-content "foo" archive
 ```
 The archive will contain:
 ```
