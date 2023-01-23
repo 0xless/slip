@@ -476,7 +476,7 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 				for ssp in sp:
 					symlink_name = Util.process_symlink_name(s)
 					fi = a.create_fileinfo(symlink_name)
-					a.add_file(fi, ssp)
+					a.add_file(fi, ssp, symlink=True)
 							
 	if paths:
 		for f in paths:
