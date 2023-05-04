@@ -1,4 +1,4 @@
-# Slip
+# Slip (experimental branch)
 
 Slip is a malicious archive generator to exploit path traversal vulnerabilities.
 
