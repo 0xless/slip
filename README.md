@@ -42,8 +42,17 @@ Options:
   -s, --symlinks TEXT             Comma separated symlinks to include in the
                                   archive. To name a symlink use the syntax:
                                   path:name
-  --file-content TEXT             Content of the files in the archive,
-                                  mandatory if paths are used.
+  --file-content TEXT             Content of the files in the archive, file-
+                                  content or multi-file-contents must be
+                                  specified if paths are used.
+  --multiple-file-contents TEXT   Base64 encoded contents of the files in the
+                                  archive separated by commas, the number of
+                                  elements in multiple-file-contents must be
+                                  equal to the number of paths. The options
+                                  multi-file-contents or file-content must be
+                                  specified if paths are used. This options
+                                  overrides file-content option if both are
+                                  specified.
   --force-name                    If set, the filename will be forced exactly
                                   as provided.
   --search INTEGER                If set, paths and symlink will generate
@@ -65,6 +74,7 @@ Options:
                                   dictionary  [default: {FILE}]
   -v, --verbose                   Verbosity trigger.
   --help                          Show this message and exit.
+
 ```
 
 ### Usage example
@@ -102,6 +112,13 @@ Create a tar archive with multiple payloads (from the default mass-find dictiona
 python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive
 ```
 ⚠️ WARNING: mass-find mode supports paths, this translates to a bruteforce attempt to rewrite a specific file, but it potentially uses A LOT of payloads, so the result is unpredictable. Use with caution.
+
+Create a zip archive with multiple file contents.
+```
+python3 slip.py --archive-type zip --paths "xxx, yyy, zzz" --multiple-file-contents "eHh4, eXl5, enp6" archive
+```
+This mode allow to specify one-by-one the content of each file in the archive. This allow the reconstruction of complex archive files like DOCX or XLSX.
+The number of paths and the number of file contents must match. The file contents have to be set in base64 to avoid troubles with unexcaped characters.
 
 ## Notes
 - Depending on the library that handles the decompression, results may vary greatly.
