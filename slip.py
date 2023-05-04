@@ -20,6 +20,8 @@ import warnings
 import string
 import random
 import click
+import base64
+import binascii
 
 
 class Util:
@@ -138,6 +140,9 @@ class Util:
 	
 	def parse_input_list(paths):
 		return [p.lstrip(" ") for p in paths.split(",")]
+	
+	def parse_input_list_multiple_file_contents(multiple_file_contents):
+		return [p.lstrip(" ") for p in str(multiple_file_contents).split("&&&&&&")]
 		
 	def process_symlink_name(symlink, random_add=5, limitlen=10, extension=".symlink"):
 		# only keeps alphanumeric characters from the original file name
@@ -332,7 +337,10 @@ class Zipper:
 		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path:name")
 		
 @click.option("--file-content", 
-		help="Content of the files in the archive, mandatory if paths are used.")
+		help="Content of the files in the archive, file-content or multi-file-contents must be specified if paths are used.")
+
+@click.option("--multiple-file-contents", 
+		help="Base64 encoded contents of the files in the archive separated by commas, the number of elements in multiple-file-contents must be equal to the number of paths. The options multi-file-contents or file-content must be specified if paths are used. This options overrides file-content option if both are specified.")
 		
 @click.option("--force-name", 
 		is_flag=True, 
@@ -377,7 +385,7 @@ class Zipper:
 		help="Verbosity trigger.")
 		
 @click.argument("archive-name")
-def main_procedure(archive_type, compression, paths, symlinks, file_content, 
+def main_procedure(archive_type, compression, paths, symlinks, file_content, multiple_file_contents,
 		archive_name, force_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict,
 		mass_find_placeholder, verbose):
 	"""
@@ -409,14 +417,33 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 		ext = Util.extensions[(archive_type, compression)]
 		archive_name = archive_name + ext
 
-	
 	if paths:
-		if not file_content:
+		if not file_content and not multiple_file_contents:
 			print() # Adds a newline
-			raise click.ClickException("file-content is required when using paths")
+			raise click.ClickException("file-content of multiple-file-contents are required when using path.s")
 			exit(1)
 		
+		# File contents operations
+		if multiple_file_contents:
+			multiple_file_contents = Util.parse_input_list(multiple_file_contents)
+			tmp = []
+
+			#base64 decode
+			for mfc in multiple_file_contents:
+				try:
+					tmp.append(base64.b64decode(mfc))
+				#TODO: add specific exception here
+				except (binascii.Error, ValueError):
+					raise click.ClickException("invalid base64 string in multiple-file-contents.")
+					exit(1)
+
+			multiple_file_contents = tmp
+
 		paths = Util.parse_input_list(paths)
+
+		if not len(paths) == len(multiple_file_contents):
+			raise click.ClickException(f"the number of paths must match the number of file contents specified in multiple-file-contents. Length found {len(paths)=} {len(multiple_file_contents)=}")
+			exit(1)
 	else:
 		# Default value (not supported by click)
 		paths = []
@@ -479,19 +506,36 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 					a.add_file(fi, ssp, symlink=True)
 							
 	if paths:
-		for f in paths:
-			if not search:
-				fi = a.create_fileinfo(f)
-				a.add_file(fi, file_content)
-			else:
-				if dotdotslash:
-					fp = Searcher.gen_search_paths(f, search, payload=dotdotslash)
+		if multiple_file_contents or file_content:
+
+			# if multiple file contents are specified			
+			if multiple_file_contents:
+				iterator = tuple()	#the iterator is a tuple that will contain (path, file_content)
+				content_iter = zip(paths, multiple_file_contents)
+			elif file_content:
+				iterator = ""
+				content_iter = paths
+				fc = file_content
+
+			for iterator in content_iter:
+				if isinstance(iterator, tuple):
+					fc = iterator[1]
+					f = iterator[0]
 				else:
-					fp = Searcher.gen_search_paths(f, search)
-					
-				for ffp in fp:
-					fi = a.create_fileinfo(ffp)
-					a.add_file(fi, file_content)
+					f = iterator
+
+				if not search:
+					fi = a.create_fileinfo(f)
+					a.add_file(fi, fc)
+				else:
+					if dotdotslash:
+						fp = Searcher.gen_search_paths(f, search, payload=dotdotslash)
+					else:
+						fp = Searcher.gen_search_paths(f, search)
+						
+					for ffp in fp:
+						fi = a.create_fileinfo(ffp)
+						a.add_file(fi, fc)
 				
 	if verbose:
 		Util.archive_info(a, archive_type, compression)
