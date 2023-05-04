@@ -119,6 +119,7 @@ python3 slip.py --archive-type zip --paths "xxx, yyy, zzz" --multiple-file-conte
 ```
 This mode allow to specify one-by-one the content of each file in the archive. This allow the reconstruction of complex archive files like DOCX or XLSX.
 The number of paths and the number of file contents must match. The file contents have to be set in base64 to avoid troubles with unexcaped characters.
+The option `--multiple-file-contens` will override `-file-contents` if both are set.
 
 ## Notes
 - Depending on the library that handles the decompression, results may vary greatly.
