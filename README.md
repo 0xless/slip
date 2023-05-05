@@ -14,10 +14,9 @@ Slip is a feature rich script capable of satisfying most "zip-slip" hunting need
 
 - Supports **zip**, **tar**, **7z**, **jar**, **war**, **apk** and **ipa** archives (and every compression algorithm supported by each format)
 - Allows to hunt for both **arbitrary file write** and **arbitrary file read** vulnerabilities (using paths or symlinks)
-- Supports multiple payloads of different types (paths/symlinks)
-- Supports the automatic generation of path traversal payloads to look for a file at different "depths" 
-- Supports the usage of custom "dotdotslash" sequences
-- Implements a "massfind" mode, that uses a payload dictionary to create the archive
+- Supports the automatic generation of path traversal payloads to look for a file at different depths in the filesystem
+- Supports the usage of custom path traversal (or "dotdotslash") sequences
+- Implements a "massfind" mode, that uses a payload dictionary to generate the archive
 
 ## Getting started
 
