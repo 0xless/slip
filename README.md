@@ -71,6 +71,9 @@ Options:
                                   path_traversal_dict.txt]
   --mass-find-placeholder TEXT    Mass-find placeholder for filename in
                                   dictionary  [default: {FILE}]
+  --clone TEXT                    Archive to clone. It creates a copy of an
+                                  existing archive and opens it in memory to
+                                  allow adding payloads.
   -v, --verbose                   Verbosity trigger.
   --help                          Show this message and exit.
 
