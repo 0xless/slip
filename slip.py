@@ -329,7 +329,7 @@ class Zipper:
 		help="Comma separated paths to include in the archive.")
 		
 @click.option("-s", "--symlinks", 
-		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path:name")
+		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path;name")
 		
 @click.option("--file-content", 
 		help="Content of the files in the archive, mandatory if paths are used.")
