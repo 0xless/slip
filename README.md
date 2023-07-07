@@ -41,7 +41,7 @@ Options:
                                   archive.
   -s, --symlinks TEXT             Comma separated symlinks to include in the
                                   archive. To name a symlink use the syntax:
-                                  path:name
+                                  path;name
   --file-content TEXT             Content of the files in the archive,
                                   mandatory if paths are used.
   --force-name                    If set, the filename will be forced exactly
@@ -93,9 +93,9 @@ config.ini
 
 Create a 7z archive with a named symlink:
 ```
-python3 slip.py --archive-type zip --symlinks "../etc/hosts:linkname" archive  
+python3 slip.py --archive-type zip --symlinks "../etc/hosts;linkname" archive  
 ```
-This technique is really useful in case directory traversal payloads are filtered in paths but not in symlink, as it would be possible to achieve an arbitrary write file referring to the named symlink as parth of the path (e.g. symlink: `../etc/:foo`, path: `foo/hosts`).
+This technique is really useful in case directory traversal payloads are filtered in paths but not in symlink, as it would be possible to achieve an arbitrary write file referring to the named symlink as parth of the path (e.g. symlink: `../etc/;foo`, path: `foo/hosts`).
 
 Create a tar archive with multiple payloads (from the default mass-find dictionary) to find the `/etc/host/` file:
 ```
