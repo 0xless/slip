@@ -455,7 +455,7 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 		for s in symlinks:
 			if not search:
 				# Check if it's a named symlink
-				if ":" in s:
+				if ";" in s:
 					symlink_path, symlink_name = s.split(";", 1)
 				else:
 					symlink_name = Util.process_symlink_name(s)
