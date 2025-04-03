@@ -533,7 +533,7 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 
 	# At least one of paths, symlinks or mass_find need to be specified
 	# TODO: remove test
-	if not paths and not symlinks and not mass_find and not test:
+	if not paths and not symlinks and not mass_find:
 		print() # Adds a newline
 		raise click.ClickException("At least one of paths, symlinks or mass-find needs to be specified.")
 		exit(1)
@@ -598,11 +598,11 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 				break
 
 			if mass_find_mode == "paths":
-				path = line.replace(Util.PAYLOAD_PATH_PLACEHOLDER, mass_find)
+				path = line.replace(mass_find_placeholder, mass_find)
 				paths.append(path)
 				
 			elif mass_find_mode == "symlinks":
-				symlink = line.replace(Util.PAYLOAD_PATH_PLACEHOLDER, mass_find)
+				symlink = line.replace(mass_find_placeholder, mass_find)
 				symlinks.append(symlink)
 	  
 		mass_find_dict.close()
