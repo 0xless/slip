@@ -565,9 +565,9 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 					a.add_file(fi, s, symlink=True)
 			else:
 				if dotdotslash:
-					sp = Searcher.gen_search_paths(s, searchdepth, payload=dotdotslash)
+					sp = Searcher.gen_search_paths(s, search, payload=dotdotslash)
 				else:
-					sp = Searcher.gen_search_paths(s, searchdepth)
+					sp = Searcher.gen_search_paths(s, search)
 					
 				for ssp in sp:
 					symlink_name = Util.process_symlink_name(s)
