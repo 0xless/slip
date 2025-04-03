@@ -24,6 +24,7 @@ import click
 import base64
 import binascii
 import os
+import shutil
 
 
 class Util:
@@ -172,7 +173,7 @@ class Util:
 		
 		print(Util.GREEN+f"[+] Success! {archive.filename} created"+Util.END)
 
-class Cloner:
+class _Cloner:
 	def get_archive_type(filename):
 		lookup = {"zip": zipfile.is_zipfile(filename),
 		"tar": tarfile.is_tarfile(filename),
@@ -238,6 +239,61 @@ class Cloner:
 		
 		return a
 
+class Cloner:
+    @staticmethod
+    def get_archive_type(filename):
+        lookup = {
+            "zip": zipfile.is_zipfile(filename),
+            "tar": tarfile.is_tarfile(filename),
+            "7z": py7zr.is_7zfile(filename)
+        }
+
+        for key in lookup:
+            if lookup[key]:
+                return key
+        return None
+    
+    @staticmethod
+    def clone_archive(source, archive_name):
+        """Efficiently clone an archive by copying and returning a writable handle"""
+        try:
+            archive_type = Cloner.get_archive_type(source)
+            if not archive_type:
+                raise ValueError("Unsupported or invalid archive format")
+
+            # Make direct copy of the source file
+            shutil.copy2(source, archive_name)
+            
+            # Handle each archive type differently
+            if archive_type == "zip":
+                # Determine compression from source
+                compression = "deflate"  # default
+                with ZipFile(source, 'r') as zf:
+                    if zf.infolist():
+                        comp_type = zf.infolist()[0].compress_type
+                        compression = {
+                            ZIP_STORED: "none",
+                            ZIP_DEFLATED: "deflate",
+                            ZIP_BZIP2: "bzip2",
+                            ZIP_LZMA: "lzma"
+                        }.get(comp_type, "deflate")
+                return Zipper(archive_name, compression, mode="a")
+            
+            elif archive_type == "tar":
+                # Tar files don't need compression info for cloning
+                return Tarrer(archive_name, "none", mode="a")
+            
+            elif archive_type == "7z":
+                # For 7z archives, we'll use a default compression since 
+                # current py7zr versions don't reliably expose the original method
+                # This is the most reliable approach that works across versions
+                return SevenZipper(archive_name, "lzma2", mode="a")
+            
+        except Exception as e:
+            if os.path.exists(archive_name):
+                os.remove(archive_name)
+            raise RuntimeError(f"Failed to clone archive: {str(e)}")
+
 		
 class Searcher:
 	def gen_search_paths(filename, depth, payload):
@@ -275,10 +331,10 @@ class SevenZipper:
 					"copy": [{'id': FILTER_COPY}]
 				}
 	
-	def __init__(self, filename, compression_method):
+	def __init__(self, filename, compression_method, mode="w"):
 		self.filename = filename
 		self.compression_method = SevenZipper.compression_methods_lookup[compression_method]
-		self.archive = SevenZipFile(filename, mode='w', filters=self.compression_method)
+		self.archive = SevenZipFile(filename, mode=mode, filters=self.compression_method)
 	
 	def create_fileinfo(self, filename, date_time=None):
 		
@@ -317,10 +373,10 @@ class Tarrer:
 	compression_methods = ("", "gz", "bz2", "xz")
 	compression_methods_lookup = {"none": "", "deflate": "gz", "bzip2": "bz2", "lzma": "xz"}
 	
-	def __init__(self, filename, compression_method):
+	def __init__(self, filename, compression_method, mode="w"):
 		self.filename = filename
 		self.compression_method = Tarrer.compression_methods_lookup[compression_method]
-		self.archive = TarFile.open(self.filename, mode="w")
+		self.archive = TarFile.open(self.filename, mode=mode)
 
 	def create_fileinfo(self, filename, date_time=None):
 		dt = Util.check_datetime(date_time)
@@ -358,10 +414,10 @@ class Zipper:
 	compression_methods = (ZIP_STORED, ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA)
 	compression_methods_lookup = {"none": ZIP_STORED, "deflate": ZIP_DEFLATED, "bzip2": ZIP_BZIP2, "lzma": ZIP_LZMA}
 	
-	def __init__(self, filename, compression_method):
+	def __init__(self, filename, compression_method, mode="w"):
 		self.filename = filename
 		self.compression_method = Zipper.compression_methods_lookup[compression_method]
-		self.archive = ZipFile(self.filename, mode="w", compression=self.compression_method)
+		self.archive = ZipFile(self.filename, mode=mode, compression=self.compression_method)
 	
 	def create_fileinfo(self, filename, date_time=None):
 		'''Creates a file zipinfo object containing filename and date data'''
@@ -384,7 +440,7 @@ class Zipper:
 	def add_file(self, file_info, content, symlink=False):
 		'''Adds file to archive given zipinfo and file content'''
 		if symlink:
-			 file_info.external_attr |= stat.S_IFLNK << 16 # symlink file type
+			file_info.external_attr |= stat.S_IFLNK << 16 # symlink file type
 		self.archive.writestr(file_info, content) 
 
 	
