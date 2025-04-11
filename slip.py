@@ -532,8 +532,13 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 				break
 
 			if mass_find_mode == "paths":
-				path = line.replace(mass_find_placeholder, mass_find)
-				paths.append(path)
+				if not file_content and not multiple_file_contents:
+					print() # Adds a newline
+					raise click.ClickException("file-content or multiple-file-contents are required when using paths")
+					exit(1)
+				else:
+					path = line.replace(mass_find_placeholder, mass_find)
+					paths.append(path)
 				
 			elif mass_find_mode == "symlinks":
 				symlink = line.replace(mass_find_placeholder, mass_find)
