@@ -187,7 +187,6 @@ class Cloner:
     
     @staticmethod
     def clone_archive(source, archive_name):
-        """Efficiently clone an archive by copying and returning a writable handle"""
         try:
             archive_type = Cloner.get_archive_type(source)
             if not archive_type:
@@ -272,7 +271,7 @@ class SevenZipper:
 		
 		self.date_time = date_time
 		
-		# py7zr doesn't really use "fileinfo" kind of files
+		# py7zr doesn't use "fileinfo" files
 		return filename
 	
 	def add_file(self, file_info, content, symlink=False):
@@ -387,23 +386,18 @@ class Zipper:
 
 @click.option("-c", "--clone",
 		help="Archive to clone. It creates a copy of an existing archive and opens to allow adding payloads.")
+
+@click.option("-j", "--json-file", 
+		help="JSON file containing a list of file definitions.")
 		
 @click.option("-p", "--paths", 
 		help="Comma separated paths to include in the archive.")
 		
 @click.option("-s", "--symlinks", 
-		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path:name")
-
-@click.option("--compression", 
-		type=click.Choice(Util.supported_compression, case_sensitive=False),
-		callback=Util.get_default_compression,
-		help="Compression algorithm to use in the archive.")
+		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path;name")
 		
 @click.option("--file-content", 
 		help="Content of the files in the archive, file-content must be specified if -p/--paths is used.")
-
-@click.option("-j", "--json-file", 
-		help="JSON file containing a list of file definitions format [{\"file-name\": \"...\", \"content\": \"...\", \"type\": \"path\" or \"symlink\"}]")
 
 @click.option("--search", 
 		type=int,
@@ -411,7 +405,7 @@ class Zipper:
 		flag_value=5,
 		default=0,
 		show_default=True, 
-		help="Maximum depth in path traversal payloads, this applies to symlinks and paths.")
+		help="Maximum depth in path traversal payloads, this option generates payload to traverse multiple depths. It applies to all symlinks and paths.")
 		
 @click.option("--dotdotslash", 
 		default="../", 
@@ -433,6 +427,11 @@ class Zipper:
 		default=Util.DICT_FILE, 
 		show_default=True, 
 		help="Mass-find payload dictionary")
+	
+@click.option("--compression", 
+		type=click.Choice(Util.supported_compression, case_sensitive=False),
+		callback=Util.get_default_compression,
+		help="Compression algorithm to use in the archive.")
 		
 @click.option("-v", "--verbose", 
 		is_flag=True, 
@@ -470,6 +469,7 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 			print() # Adds a newline
 			raise click.ClickException("file-content is required when using paths")
 			exit(1)
+			
 		paths = Util.parse_input_list(paths, fc=file_content)
 	else:
 		# Default value (not supported by click)
@@ -570,6 +570,10 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 				else:
 					a.add_file(fi, s, symlink=True)
 			else:
+				# Even if not supported, strips symlink path and only keeps the name for payload generation.
+				if ";" in s:
+					_, s = s.split(";", 1)
+
 				if dotdotslash:
 					sp = Searcher.gen_search_paths(s, search, payload=dotdotslash)
 				else:
