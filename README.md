@@ -95,7 +95,7 @@ python3 slip.py --clone source.7z --paths "foo" --file-content "bar" archive.7z
 
 Create an archive from a JSON file and add new payloads:
 ```
-python3 slip.py --json-file definition.json --paths "foo0,bar00" --symlinks "/etc/passwd;oof,/etc/shadow;rab"--file-content "buzz" archive.zip
+python3 slip.py --json-file definition.json --paths "foo0,bar00" --symlinks "/etc/passwd,/etc/shadow"--file-content "buzz" archive.zip
 ```
 
 With `definition.json` containing:
@@ -125,7 +125,7 @@ With `definition.json` containing:
 ]
 ```
 Supported fields are `file-name`, `content`, `base64`, `type`.
-If `base64` is specified, content will be decoded form bae64.
+If `base64` is specified, content will be decoded form base64.
 `type` can only be `path` or `symlink`.
 
 Create a tar.bz2 archive with 4 payloads to search for "config.ini" at 3 different depths (it also uses Windows flavor dot dot slash): 
@@ -139,7 +139,7 @@ config.ini
 ..\..\config.ini
 ..\..\..\config.ini
 ```
-NOTE: --search does not support named symlink usage to prevent named symlinks to overwriting eachother. 
+NOTE: --search does not support named symlink usage to prevent named symlinks from overwriting eachother. 
 
 Create a tar archive with payloads from the default mass-find dictionary to find the `/etc/host/` file:
 ```

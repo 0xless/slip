@@ -33,7 +33,7 @@ class Util:
 	YELLOW = "\033[1;33m"
 	END = "\033[0m"
 	
-	DICT_FILE = "path_traversal_dict.txt"
+	DICT_FILE = "dict.txt"
 	PAYLOAD_PATH_PLACEHOLDER = "{FILE}"
 	
 	extensions = { 
@@ -458,9 +458,9 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 	archiver = supported_archives.get(archive_type)
 
 	# At least one of paths, symlinks or mass_find need to be specified
-	if not paths and not symlinks and not mass_find and not clone and not json_file:
+	if not paths and not symlinks and not mass_find and not json_file:
 		print() # Adds a newline
-		raise click.ClickException("At least one of paths, symlinks, mass-find, json or clone needs to be specified.")
+		raise click.ClickException("At least one of paths, symlinks, mass-find or json needs to be specified.")
 		exit(1)
 	
 	if not compression in Util.compression_lookup[archive_type]:
