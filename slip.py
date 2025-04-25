@@ -427,6 +427,11 @@ class Zipper:
 		default=Util.DICT_FILE, 
 		show_default=True, 
 		help="Mass-find payload dictionary")
+
+@click.option("--mass-find-placeholder", 
+		default=Util.PAYLOAD_PATH_PLACEHOLDER, 
+		show_default=True, 
+		help="Filename placeholder in mass-find payload dictionary")
 	
 @click.option("--compression", 
 		type=click.Choice(Util.supported_compression, case_sensitive=False),
@@ -439,7 +444,7 @@ class Zipper:
 		
 @click.argument("archive-name")
 def main_procedure(archive_type, compression, paths, symlinks, file_content, json_file,
-		archive_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict, clone, verbose):
+		archive_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict, mass_find_placeholder, clone, verbose):
 	"""
 	Script to generate "zipslip" and "zip symlink" archives.
 	
@@ -453,9 +458,9 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 	archiver = supported_archives.get(archive_type)
 
 	# At least one of paths, symlinks or mass_find need to be specified
-	if not paths and not symlinks and not mass_find:
+	if not paths and not symlinks and not mass_find and not clone and not json_file:
 		print() # Adds a newline
-		raise click.ClickException("At least one of paths, symlinks or mass-find needs to be specified.")
+		raise click.ClickException("At least one of paths, symlinks, mass-find, json or clone needs to be specified.")
 		exit(1)
 	
 	if not compression in Util.compression_lookup[archive_type]:
@@ -481,9 +486,6 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 		symlinks = []
 
 	if json_file:
-		# overrides paths and symlinks
-		#paths = []
-		#symlinks = []
 		file_contents = []
 
 		with open(json_file, 'r') as f:
@@ -537,11 +539,11 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 					raise click.ClickException("file-content are required when using paths")
 					exit(1)
 				else:
-					path = line.replace(mass_find_placeholder, mass_find)
-					paths.append(path, file_content)
+					path = line.replace(mass_find_placeholder, mass_find).rstrip()
+					paths.append((path, file_content))
 				
 			elif mass_find_mode == "symlinks":
-				symlink = line.replace(mass_find_placeholder, mass_find)
+				symlink = line.replace(mass_find_placeholder, mass_find).rstrip()
 				symlinks.append(symlink)
 	  
 		mass_find_dict.close()
@@ -569,7 +571,7 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 				else:
 					a.add_file(fi, s, symlink=True)
 			else:
-				# Even if not supported, strips symlink path and only keeps the name for payload generation.
+				# Strips symlink path and only keeps the name for payload generation.
 				if ";" in s:
 					_, s = s.split(";", 1)
 
