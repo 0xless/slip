@@ -453,7 +453,6 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 	archiver = supported_archives.get(archive_type)
 
 	# At least one of paths, symlinks or mass_find need to be specified
-	# TODO: remove test
 	if not paths and not symlinks and not mass_find:
 		print() # Adds a newline
 		raise click.ClickException("At least one of paths, symlinks or mass-find needs to be specified.")
