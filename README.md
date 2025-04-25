@@ -1,4 +1,4 @@
-# Slip
+# Slip (experimental branch)
 
 Slip is a malicious archive generator to exploit path traversal vulnerabilities.
 
@@ -12,12 +12,11 @@ Most commonly used tools rarely support path traversal payloads in archives, thi
 
 Slip is a feature rich script capable of satisfying most "zip-slip" hunting needs, in particular the script:
 
-- Supports **zip**, **tar**, **7z**, **jar**, **war**, **apk** and **ipa** archives (and every compression algorithm supported by each format)
-- Allows to hunt for both **arbitrary file write** and **arbitrary file read** vulnerabilities (using paths or symlinks)
-- Supports multiple payloads of different types (paths/symlinks)
-- Supports the automatic generation of path traversal payloads to look for a file at different "depths" 
-- Supports the usage of custom "dotdotslash" sequences
-- Implements a "massfind" mode, that uses a payload dictionary to create the archive
+- Supports **zip**, **tar**, **7z** and **zip-like** (jar, war, apk, ipa, ...) archives 
+- Allows to hunt for **arbitrary file write** and **arbitrary file read** vulnerabilities 
+- Supports the generation of path traversal payloads to search for a file at different depths in the filesystem
+- Implements a massfind mode, that uses a payload dictionary to generate the archive
+- Allows cloning existing archives to add malicious payloads in more complex existing archives 
 
 ## Getting started
 
@@ -35,21 +34,23 @@ Usage: slip.py [OPTIONS] ARCHIVE_NAME
 Options:
   -a, --archive-type [zip|tar|7z|jar|war|apk|ipa]
                                   Type of the archive.  [default: zip]
-  -c, --compression [none|deflate|bzip2|lzma|lzma2|ppmd|brotli|zstandard|copy]
-                                  Compression algorithm to use in the archive.
+  -c, --clone TEXT                Archive to clone. It creates a copy of an
+                                  existing archive and opens to allow adding
+                                  payloads.
+  -j, --json-file TEXT            JSON file containing a list of file
+                                  definitions.
   -p, --paths TEXT                Comma separated paths to include in the
                                   archive.
   -s, --symlinks TEXT             Comma separated symlinks to include in the
                                   archive. To name a symlink use the syntax:
                                   path;name
-  --file-content TEXT             Content of the files in the archive,
-                                  mandatory if paths are used.
-  --force-name                    If set, the filename will be forced exactly
-                                  as provided.
-  --search INTEGER                If set, paths and symlink will generate
-                                  multiple traversal paths to try and find the
-                                  target file or path at different depths.
-                                  [default: 0]
+  --file-content TEXT             Content of the files in the archive, file-
+                                  content must be specified if -p/--paths is
+                                  used.
+  --search INTEGER                Maximum depth in path traversal payloads,
+                                  this option generates payload to traverse
+                                  multiple depths. It applies to all symlinks
+                                  and paths.  [default: 0]
   --dotdotslash TEXT              Dot dot slash sequence to use in search
                                   mode.  [default: ../]
   --mass-find TEXT                Name of the file to find. It will create an
@@ -60,28 +61,77 @@ Options:
   --mass-find-mode [paths|symlinks]
                                   Mass-find mode to use  [default: symlinks]
   --mass-find-dict FILENAME       Mass-find payload dictionary  [default:
-                                  path_traversal_dict.txt]
-  --mass-find-placeholder TEXT    Mass-find placeholder for filename in
+                                  dict.txt]
+  --mass-find-placeholder TEXT    Filename placeholder in mass-find payload
                                   dictionary  [default: {FILE}]
+  --compression [none|deflate|bzip2|lzma|lzma2|ppmd|brotli|zstandard|copy]
+                                  Compression algorithm to use in the archive.
   -v, --verbose                   Verbosity trigger.
   --help                          Show this message and exit.
+
 ```
 
 ### Usage example
 
 Create a tar.bz2 archive containing 2 explicit paths: 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "../etc/hosts, ../../etc/hosts" --file-content "foo" archive
+python3 slip.py --archive-type tar --compression bzip2 --paths "../etc/hosts, ../../etc/hosts" --file-content "foo" archive.tar
 ```
 
 Create a zip archive containing an explicit path and an explicit symlink: 
 ```
-python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" --symlinks "../etc/shadows" --file-content "foo" archive
+python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" --symlinks "../etc/shadows" --file-content "foo" archive.zip
 ```
+
+Create a 7z archive with a named symlink:
+```
+python3 slip.py --archive-type zip --symlinks "../etc/hosts;linkname" archive.zip  
+```
+This technique is really useful in case directory traversal payloads are filtered in paths but not in symlink, as it would be possible to achieve an arbitrary write file referring to the named symlink as parth of the path (e.g. symlink: `../etc/;foo`, path: `foo/hosts`).
+
+Create an archive from an existing one and add a new payload:
+```
+python3 slip.py --clone source.7z --paths "foo" --file-content "bar" archive.7z
+```
+
+Create an archive from a JSON file and add new payloads:
+```
+python3 slip.py --json-file definition.json --paths "foo0,bar00" --symlinks "/etc/passwd,/etc/shadow" --file-content "buzz" archive.zip
+```
+
+With `definition.json` containing:
+```
+[
+    {
+        "file-name": "../foo1",
+        "content":"bar",
+        "type":"path"
+    },
+    {
+        "file-name": "../../foo2",
+        "content":"bar",
+        "type":"path"
+    },
+    {
+        "file-name": "/etc/passwd;foo3",
+        "content":"IGNORED",
+        "type":"symlink"
+    },
+    {
+        "file-name": "foo4",
+        "content":"Y2lhbwo=",
+        "base64": true,
+        "type":"path"
+    }
+]
+```
+Supported fields are `file-name`, `content`, `base64`, `type`.
+If `base64` is specified, content will be decoded form base64.
+`type` can only be `path` or `symlink`.
 
 Create a tar.bz2 archive with 4 payloads to search for "config.ini" at 3 different depths (it also uses Windows flavor dot dot slash): 
 ```
-python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" --file-content "foo" archive
+python3 slip.py --archive-type tar --compression bzip2 --paths "config.ini" --search 3 --dotdotslash "..\\" --file-content "foo" archive.tar
 ```
 The archive will contain:
 ```
@@ -90,29 +140,12 @@ config.ini
 ..\..\config.ini
 ..\..\..\config.ini
 ```
+NOTE: --search does not support named symlink usage to prevent named symlinks from overwriting eachother. 
 
-Create a 7z archive with a named symlink:
+Create a tar archive with payloads from the default mass-find dictionary to find the `/etc/host/` file:
 ```
-python3 slip.py --archive-type zip --symlinks "../etc/hosts;linkname" archive  
+python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive.tar
 ```
-This technique is really useful in case directory traversal payloads are filtered in paths but not in symlink, as it would be possible to achieve an arbitrary write file referring to the named symlink as parth of the path (e.g. symlink: `../etc/;foo`, path: `foo/hosts`).
-
-Create a tar archive with multiple payloads (from the default mass-find dictionary) to find the `/etc/host/` file:
-```
-python3 slip.py --archive-type tar --mass-find "/etc/hosts" --mass-find-mode symlinks archive
-```
-⚠️ WARNING: mass-find mode supports paths, this translates to a bruteforce attempt to rewrite a specific file, but it potentially uses A LOT of payloads, so the result is unpredictable. Use with caution.
-
-## Notes
-- Depending on the library that handles the decompression, results may vary greatly.
-
-  Different compression algorithms can trigger different behaviours during the extraction, but also the usage of certain path traversal payloads in names or the co-presence of path traversal payloads in names and symlink can lead to weird behaviours during the extraction. Many combinations of compression algorithms, archive types and payloads are relatively untested and should be evaluated on a case by case basis to obtain the best results.
-
-- Archive types: jar|war|apk|ipa are supported as simple zip archives.  
-The archive format is correct, but valid archives should contain compatible contents.
-Valid contents can be set manually and are not yet supported by slip.
-Please note that many software that handles these formats, treat them as zip files.
-This means that using the correct extension will suffice.
 
 ## License
 This project is licensed under the GPL-3.0 [License](https://github.com/0xless/slip/blob/main/LICENSE).
