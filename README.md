@@ -96,7 +96,7 @@ python3 slip.py --clone source.7z --paths "foo" --file-content "bar" archive.7z
 
 Create an archive from a JSON file and add new payloads:
 ```
-python3 slip.py --json-file definition.json --paths "foo0,bar00" --symlinks "/etc/passwd,/etc/shadow"--file-content "buzz" archive.zip
+python3 slip.py --json-file definition.json --paths "foo0,bar00" --symlinks "/etc/passwd,/etc/shadow" --file-content "buzz" archive.zip
 ```
 
 With `definition.json` containing:
