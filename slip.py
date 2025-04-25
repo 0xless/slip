@@ -35,6 +35,8 @@ class Util:
 	
 	DICT_FILE = "dict.txt"
 	PAYLOAD_PATH_PLACEHOLDER = "{FILE}"
+
+	MULTIPLE_FILE_CONTENTS_SPLIT = "&&&&&&"
 	
 	extensions = { 
 			("tar","none"): ".tar",
@@ -438,6 +440,9 @@ class Zipper:
 		callback=Util.get_default_compression,
 		help="Compression algorithm to use in the archive.")
 		
+@click.option("--clone",
+		help="Archive to clone. It creates a copy of an existing archive and opens it in memory to allow adding payloads.")
+		
 @click.option("-v", "--verbose", 
 		is_flag=True, 
 		help="Verbosity trigger.")
@@ -469,9 +474,9 @@ def main_procedure(archive_type, compression, paths, symlinks, file_content, jso
 		compression = n_compression
 
 	if paths:
-		if not file_content:
+		if not file_content and not multiple_file_contents:
 			print() # Adds a newline
-			raise click.ClickException("file-content is required when using paths")
+			raise click.ClickException("file-content or multiple-file-contents are required when using paths")
 			exit(1)
 			
 		paths = Util.parse_input_list(paths, fc=file_content)
