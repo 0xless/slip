@@ -12,12 +12,11 @@ Most commonly used tools rarely support path traversal payloads in archives, thi
 
 Slip is a feature rich script capable of satisfying most "zip-slip" hunting needs, in particular the script:
 
-- Supports **zip**, **tar**, **7z**, **jar**, **war**, **apk** and **ipa** archives 
-- Allows to hunt for **arbitrary file write** and **arbitrary file read** vulnerabilities (using paths or symlinks)
-- Supports the automatic generation of path traversal payloads to look for a file at different depths in the filesystem
-- Supports the usage of custom path traversal "dotdotslash" sequences
-- Implements a "massfind" mode, that uses a payload dictionary to generate the archive
-- Allows cloning existing archives to add malicious payloads in more complex archives
+- Supports **zip**, **tar**, **7z** and **zip-like** (jar, war, apk, ipa, ...) archives 
+- Allows to hunt for **arbitrary file write** and **arbitrary file read** vulnerabilities 
+- Supports the generation of path traversal payloads to search for a file at different depths in the filesystem
+- Implements a massfind mode, that uses a payload dictionary to generate the archive
+- Allows cloning existing archives to add malicious payloads in more complex existing archives 
 
 ## Getting started
 
@@ -39,7 +38,7 @@ Options:
                                   existing archive and opens to allow adding
                                   payloads.
   -j, --json-file TEXT            JSON file containing a list of file
-                                  definitions
+                                  definitions.
   -p, --paths TEXT                Comma separated paths to include in the
                                   archive.
   -s, --symlinks TEXT             Comma separated symlinks to include in the
@@ -62,7 +61,9 @@ Options:
   --mass-find-mode [paths|symlinks]
                                   Mass-find mode to use  [default: symlinks]
   --mass-find-dict FILENAME       Mass-find payload dictionary  [default:
-                                  path_traversal_dict.txt]
+                                  dict.txt]
+  --mass-find-placeholder TEXT    Filename placeholder in mass-find payload
+                                  dictionary  [default: {FILE}]
   --compression [none|deflate|bzip2|lzma|lzma2|ppmd|brotli|zstandard|copy]
                                   Compression algorithm to use in the archive.
   -v, --verbose                   Verbosity trigger.
