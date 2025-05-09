@@ -32,7 +32,7 @@ Usage: slip.py [OPTIONS] ARCHIVE_NAME
   ARCHIVE-NAME is the name of the archive to be created.
 
 Options:
-  -a, --archive-type [zip|tar|7z|jar|war|apk|ipa]
+  -a, --archive-type [zip|tar||jar|war|apk|ipa]
                                   Type of the archive.  [default: zip]
   -c, --clone TEXT                Archive to clone. It creates a copy of an
                                   existing archive and opens to allow adding
@@ -85,7 +85,7 @@ python3 slip.py --archive-type zip --compression deflate --paths "../etc/hosts" 
 
 Create a 7z archive with a named symlink:
 ```
-python3 slip.py --archive-type zip --symlinks "../etc/hosts;linkname" archive.zip  
+python3 slip.py --archive-type 7z --symlinks "../etc/hosts;linkname" archive.7z  
 ```
 This technique is really useful in case directory traversal payloads are filtered in paths but not in symlink, as it would be possible to achieve an arbitrary write file referring to the named symlink as parth of the path (e.g. symlink: `../etc/;foo`, path: `foo/hosts`).
 
