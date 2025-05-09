@@ -6,7 +6,7 @@ Slip makes it easy to create multiple archives containing path traversal payload
 
 ## Motivation
 
-Most commonly used tools rarely support path traversal payloads in archives, this makes it hard and time consuming to create malicious archives when attempting to find vulnerabilities in a software. With slip it's really convenient to create higly customizable archives that fit most situations.
+Most commonly used tools rarely support path traversal payloads in archives, this makes it hard and time consuming to create malicious archives when attempting to find vulnerabilities in a software. With slip it's really convenient to create highly customizable archives that fit most situations.
 
 ## Features
 
