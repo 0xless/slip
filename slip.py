@@ -440,9 +440,6 @@ class Zipper:
 		callback=Util.get_default_compression,
 		help="Compression algorithm to use in the archive.")
 		
-@click.option("--clone",
-		help="Archive to clone. It creates a copy of an existing archive and opens it in memory to allow adding payloads.")
-		
 @click.option("-v", "--verbose", 
 		is_flag=True, 
 		help="Verbosity trigger.")
